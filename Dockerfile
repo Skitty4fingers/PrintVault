@@ -17,10 +17,9 @@ RUN apt-get update \
   && rm -rf /var/lib/apt/lists/*
 WORKDIR /app/server
 COPY server/package*.json ./
-# Build native modules from source directly. This skips prebuild-install's
-# network download (which can stall in restricted build environments) and is
-# deterministic since the toolchain above is present.
-RUN npm_config_build_from_source=true npm ci --omit=dev
+# Installs better-sqlite3's prebuilt binary when available (fast); the toolchain
+# above lets it compile from source as a fallback if no prebuild is found.
+RUN npm ci --omit=dev
 
 # Stage 3: minimal runtime image.
 FROM node:20-bookworm-slim AS runtime

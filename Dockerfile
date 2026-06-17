@@ -8,12 +8,19 @@ COPY client/ ./
 RUN npm run build
 
 # Stage 2: install server production dependencies.
-# Debian (bookworm) is used instead of Alpine so the better-sqlite3 native
-# module installs from a prebuilt binary without needing a build toolchain.
+# better-sqlite3 is a native module; the build tools below let it compile
+# reliably if a prebuilt binary isn't available. These tools live only in this
+# builder stage — the runtime image just copies the compiled node_modules.
 FROM node:20-bookworm-slim AS server-deps
+RUN apt-get update \
+  && apt-get install -y --no-install-recommends python3 make g++ \
+  && rm -rf /var/lib/apt/lists/*
 WORKDIR /app/server
 COPY server/package*.json ./
-RUN npm ci --omit=dev
+# Build native modules from source directly. This skips prebuild-install's
+# network download (which can stall in restricted build environments) and is
+# deterministic since the toolchain above is present.
+RUN npm_config_build_from_source=true npm ci --omit=dev
 
 # Stage 3: minimal runtime image.
 FROM node:20-bookworm-slim AS runtime

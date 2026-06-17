@@ -5,7 +5,7 @@ import bcrypt from 'bcryptjs';
 import archiver from 'archiver';
 import db from '../db.js';
 import { shareLimiter } from '../middleware/auth.js';
-import { serializeFile, resolveStoredPath } from '../utils/files.js';
+import { serializeFile, resolveStoredPath, thumbPath } from '../utils/files.js';
 
 const router = Router();
 router.use(shareLimiter);
@@ -115,6 +115,16 @@ function streamShared(req, res, attachment) {
 
 router.get('/:token/file/:fileId/download', requireShareAccess, (req, res) => streamShared(req, res, true));
 router.get('/:token/file/:fileId/raw', requireShareAccess, (req, res) => streamShared(req, res, false));
+
+router.get('/:token/file/:fileId/thumbnail', requireShareAccess, (req, res) => {
+  const row = shareFiles(req.share).find((f) => f.id === req.params.fileId);
+  if (!row) return res.status(404).json({ error: 'File not in this share' });
+  const p = thumbPath(row.id);
+  if (!fs.existsSync(p)) return res.status(404).json({ error: 'No thumbnail' });
+  res.setHeader('Content-Type', 'image/png');
+  res.setHeader('Cache-Control', 'private, max-age=86400');
+  fs.createReadStream(p).pipe(res);
+});
 
 // ---- Download a shared collection as ZIP -----------------------------------
 router.get('/:token/download', requireShareAccess, (req, res) => {

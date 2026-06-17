@@ -17,6 +17,8 @@ import {
   addFileTags,
   removeFileTags,
   deleteStoredFile,
+  thumbPath,
+  parseFolderPath,
 } from '../utils/files.js';
 
 const router = Router();
@@ -45,14 +47,36 @@ const insertFile = db.prepare(`
           @description, @category, @source_url, @printer_notes, @material_notes, @profile_notes)
 `);
 
+// Find or create a collection by name, returning its id.
+const findCollection = db.prepare('SELECT id FROM collections WHERE name = ? COLLATE NOCASE');
+const insertCollection = db.prepare('INSERT INTO collections (id, name) VALUES (?, ?)');
+const maxColPos = db.prepare('SELECT COALESCE(MAX(position),0) AS p FROM collection_files WHERE collection_id = ?');
+const linkColFile = db.prepare('INSERT OR IGNORE INTO collection_files (collection_id, file_id, position) VALUES (?, ?, ?)');
+function findOrCreateCollection(name) {
+  const existing = findCollection.get(name);
+  if (existing) return existing.id;
+  const id = nanoid();
+  insertCollection.run(id, name);
+  return id;
+}
+
 router.post('/', requireAuth, upload.array('files'), (req, res) => {
   const body = req.body || {};
   const sharedTags = (body.tags || '').split(',').map((t) => t.trim()).filter(Boolean);
-  const uploaded = [];
+  // Folder upload extras: per-file relative paths + behaviour toggles.
+  let relativePaths = [];
+  try { relativePaths = JSON.parse(body.relativePaths || '[]'); } catch { relativePaths = []; }
+  const autoTag = /^(1|true)$/i.test(String(body.autoTag));
+  const autoCollections = /^(1|true)$/i.test(String(body.autoCollections));
 
-  for (const f of req.files || []) {
+  const uploaded = [];
+  const collectionBuckets = {}; // topLevelFolder -> [fileId]
+
+  (req.files || []).forEach((f, i) => {
     const ext = extOf(f.originalname);
     const id = f.filename.split('.')[0];
+    const rel = relativePaths[i] || f.originalname;
+    const { segments, topLevel } = parseFolderPath(rel);
     const display = sanitizeFilename(f.originalname).replace(/\.[^.]+$/, '');
     const row = {
       id,
@@ -70,18 +94,32 @@ router.post('/', requireAuth, upload.array('files'), (req, res) => {
       profile_notes: body.profileNotes || '',
     };
     insertFile.run(row);
-    if (sharedTags.length) setFileTags(id, sharedTags);
-    uploaded.push(serializeFile(db.prepare('SELECT * FROM files WHERE id = ?').get(id)));
-  }
 
-  // Files rejected by the extension filter never reach req.files; surface a hint.
-  const skipped = [];
-  if (req.files && body.__expected && Number(body.__expected) > req.files.length) {
-    skipped.push({ name: 'some files', reason: 'unsupported file type' });
-  }
+    // Tags: shared tags plus folder-derived tags when auto-tagging is on.
+    const tags = [...sharedTags];
+    if (autoTag) tags.push(...segments);
+    if (tags.length) setFileTags(id, tags);
+
+    if (autoCollections && topLevel) {
+      (collectionBuckets[topLevel] ||= []).push(id);
+    }
+    uploaded.push(serializeFile(db.prepare('SELECT * FROM files WHERE id = ?').get(id)));
+  });
+
+  // Create/append collections from top-level folders.
+  const collectionsCreated = [];
+  const tx = db.transaction(() => {
+    for (const [name, ids] of Object.entries(collectionBuckets)) {
+      const cid = findOrCreateCollection(name);
+      let pos = maxColPos.get(cid).p;
+      for (const fid of ids) linkColFile.run(cid, fid, ++pos);
+      collectionsCreated.push({ name, count: ids.length });
+    }
+  });
+  tx();
 
   logActivity('upload', `${uploaded.length} file(s)`);
-  res.json({ uploaded, skipped });
+  res.json({ uploaded, skipped: [], collectionsCreated });
 });
 
 // ---- List with filters / search / sort / pagination ------------------------
@@ -153,7 +191,7 @@ router.delete('/:id', requireAuth, (req, res) => {
   const row = db.prepare('SELECT * FROM files WHERE id = ?').get(req.params.id);
   if (!row) return res.status(404).json({ error: 'File not found' });
   db.prepare('DELETE FROM files WHERE id = ?').run(row.id);
-  deleteStoredFile(row.stored_name);
+  deleteStoredFile(row.stored_name, row.id);
   logActivity('delete', row.name);
   res.json({ ok: true });
 });
@@ -193,6 +231,34 @@ router.get('/:id/raw', requireAuth, (req, res) => {
   const row = db.prepare('SELECT * FROM files WHERE id = ?').get(req.params.id);
   if (!row) return res.status(404).json({ error: 'File not found' });
   streamFile(res, row, { attachment: false });
+});
+
+// ---- Thumbnails ------------------------------------------------------------
+// Thumbnails are PNGs rendered by the browser at upload time (for STL/OBJ) and
+// uploaded here. Kept small; stored on disk by internal id.
+const thumbUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 3 * 1024 * 1024 },
+  fileFilter: (_req, file, cb) => cb(null, (file.mimetype || '').startsWith('image/')),
+});
+
+router.post('/:id/thumbnail', requireAuth, thumbUpload.single('thumb'), (req, res) => {
+  const row = db.prepare('SELECT * FROM files WHERE id = ?').get(req.params.id);
+  if (!row) return res.status(404).json({ error: 'File not found' });
+  if (!req.file) return res.status(400).json({ error: 'No thumbnail image provided' });
+  fs.writeFileSync(thumbPath(row.id), req.file.buffer);
+  db.prepare('UPDATE files SET thumb = 1 WHERE id = ?').run(row.id);
+  res.json({ ok: true });
+});
+
+router.get('/:id/thumbnail', requireAuth, (req, res) => {
+  const row = db.prepare('SELECT * FROM files WHERE id = ?').get(req.params.id);
+  if (!row) return res.status(404).json({ error: 'File not found' });
+  const p = thumbPath(row.id);
+  if (!fs.existsSync(p)) return res.status(404).json({ error: 'No thumbnail' });
+  res.setHeader('Content-Type', 'image/png');
+  res.setHeader('Cache-Control', 'private, max-age=86400');
+  fs.createReadStream(p).pipe(res);
 });
 
 // ---- Bulk download as ZIP --------------------------------------------------
@@ -252,7 +318,7 @@ router.post('/bulk/delete', requireAuth, (req, res) => {
       const row = db.prepare('SELECT * FROM files WHERE id = ?').get(id);
       if (!row) continue;
       db.prepare('DELETE FROM files WHERE id = ?').run(id);
-      deleteStoredFile(row.stored_name);
+      deleteStoredFile(row.stored_name, row.id);
       deleted++;
     }
   });

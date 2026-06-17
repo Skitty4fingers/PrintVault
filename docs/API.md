@@ -12,18 +12,20 @@ Public share routes live under `/api/share/:token` and never require login.
 
 ## Files
 - `GET /api/files` — query: `search, tag, category, type, favorite(0|1), collection(id), sort(name|created_at|size|ext), order(asc|desc), page, pageSize` → `{ items:[File], total }`
-- `POST /api/files` — `multipart/form-data`, field `files` (one or many). Optional fields applied to all: `category, tags`(comma list)`, description, printerNotes, materialNotes, profileNotes, sourceUrl`. → `{ uploaded:[File], skipped:[{name,reason}] }`
+- `POST /api/files` — `multipart/form-data`, field `files` (one or many). Optional fields applied to all: `category, tags`(comma list)`, description, printerNotes, materialNotes, profileNotes, sourceUrl`. Folder uploads: `relativePaths` (JSON array of per-file browser paths, aligned to `files` order), `autoTag` (`1|0` — add folder path segments as tags), `autoCollections` (`1|0` — create/append a collection per top-level folder). → `{ uploaded:[File], skipped:[], collectionsCreated:[{name,count}] }`
 - `GET    /api/files/:id` → `File`
 - `PATCH  /api/files/:id` — body any of `{ name, description, category, tags:[], printerNotes, materialNotes, profileNotes, sourceUrl }` → `File`
 - `DELETE /api/files/:id` → `{ ok:true }`
 - `POST   /api/files/:id/favorite` — body `{ favorite:bool }` → `File`
 - `GET    /api/files/:id/download` — streams original file as attachment
 - `GET    /api/files/:id/raw` — streams file inline (used by the STL/image previewer)
+- `POST   /api/files/:id/thumbnail` — `multipart/form-data` field `thumb` (PNG); stores a model preview thumbnail
+- `GET    /api/files/:id/thumbnail` — streams the PNG thumbnail (404 if none)
 - `POST   /api/files/bulk/download` — body `{ ids:[] }` → streams `printvault-export.zip`
 - `POST   /api/files/bulk/tag` — body `{ ids:[], addTags:[], removeTags:[], category? }` → `{ updated:n }`
 - `POST   /api/files/bulk/delete` — body `{ ids:[] }` → `{ deleted:n }`
 
-`File` = `{ id, name, originalName, ext, mime, size, description, category, tags:[], printerNotes, materialNotes, profileNotes, sourceUrl, favorite, createdAt, updatedAt }`
+`File` = `{ id, name, originalName, ext, mime, size, description, category, tags:[], printerNotes, materialNotes, profileNotes, sourceUrl, favorite, thumb, createdAt, updatedAt }`
 
 ## Tags / categories
 - `GET /api/tags` → `[{ name, count }]`
@@ -51,6 +53,7 @@ Public share routes live under `/api/share/:token` and never require login.
 - `GET  /api/share/:token/files` → `[File]` (only files in the shared target; 401/403 if locked/expired/revoked)
 - `GET  /api/share/:token/file/:fileId/download` — streams attachment
 - `GET  /api/share/:token/file/:fileId/raw` — streams inline for preview
+- `GET  /api/share/:token/file/:fileId/thumbnail` — streams the PNG thumbnail (404 if none)
 - `GET  /api/share/:token/download` — ZIP of shared collection
 
 ## Settings / stats / export

@@ -89,6 +89,15 @@ CREATE TABLE IF NOT EXISTS activity (
 );
 `);
 
+// --- lightweight migrations (add columns to existing databases) ------------
+function ensureColumn(table, column, definition) {
+  const cols = db.prepare(`PRAGMA table_info(${table})`).all();
+  if (!cols.some((c) => c.name === column)) {
+    db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition}`);
+  }
+}
+ensureColumn('files', 'thumb', 'INTEGER NOT NULL DEFAULT 0');
+
 // Seed default settings if missing.
 const settingsDefaults = {
   appName: 'PrintVault',

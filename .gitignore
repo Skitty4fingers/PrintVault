@@ -1,0 +1,40 @@
+# Dependencies
+node_modules/
+*/node_modules/
+
+# Environment / secrets
+.env
+.env.*
+!.env.example
+
+# Build output
+client/dist/
+dist/
+build/
+
+# Runtime data (uploads, db, thumbnails, volumes)
+data/
+storage/
+*.db
+*.db-shm
+*.db-wal
+*.sqlite
+*.sqlite3
+thumbnails/
+uploads/
+
+# Logs
+logs/
+*.log
+npm-debug.log*
+
+# Docker volume data
+docker-data/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp
+*.tmp

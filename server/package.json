@@ -1,0 +1,26 @@
+{
+  "name": "printvault-server",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "PrintVault backend — Express API + SQLite",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "node --watch src/index.js"
+  },
+  "dependencies": {
+    "archiver": "^7.0.1",
+    "bcryptjs": "^2.4.3",
+    "better-sqlite3": "^12.2.0",
+    "better-sqlite3-session-store": "^0.1.0",
+    "cookie-parser": "^1.4.7",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "express-rate-limit": "^7.5.0",
+    "express-session": "^1.18.1",
+    "helmet": "^8.0.0",
+    "multer": "^1.4.5-lts.1",
+    "nanoid": "^5.0.9"
+  }
+}

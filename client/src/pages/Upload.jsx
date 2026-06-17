@@ -100,17 +100,23 @@ export default function Upload() {
             onClick={() => inputRef.current.click()}>
             <div className="ico-big"><Icon name="upload" size={42} /></div>
             <h3 style={{ margin: '12px 0 6px' }}>Drag & drop files here</h3>
-            <p className="muted" style={{ margin: 0 }}>or click to browse · STL, 3MF, OBJ, STEP, G-code, images, ZIP</p>
-            <div className="row" style={{ justifyContent: 'center', marginTop: 16 }}>
-              <button className="btn btn-sm" onClick={(e) => { e.stopPropagation(); folderRef.current.click(); }}>
-                <Icon name="collection" size={15} /> Select a folder (with subfolders)
-              </button>
-            </div>
-            <input ref={inputRef} type="file" multiple hidden accept={ALLOWED.map((e) => '.' + e).join(',')}
-              onChange={(e) => { addFiles(e.target.files); e.target.value = ''; }} />
-            <input ref={folderRef} type="file" multiple hidden
-              onChange={(e) => { addFiles(e.target.files); e.target.value = ''; }} />
+            <p className="muted" style={{ margin: 0 }}>or use the buttons below · STL, 3MF, OBJ, STEP, G-code, images, ZIP</p>
           </div>
+
+          {/* Pickers live outside the dropzone so their clicks don't collide. */}
+          <div className="row" style={{ marginTop: 12, gap: 10, flexWrap: 'wrap' }}>
+            <button type="button" className="btn" onClick={() => inputRef.current.click()}>
+              <Icon name="upload" size={16} /> Select files
+            </button>
+            <button type="button" className="btn" onClick={() => folderRef.current.click()}>
+              <Icon name="collection" size={16} /> Select folder (with subfolders)
+            </button>
+          </div>
+          <input ref={inputRef} type="file" multiple hidden accept={ALLOWED.map((e) => '.' + e).join(',')}
+            onChange={(e) => { addFiles(e.target.files); e.target.value = ''; }} />
+          {/* webkitdirectory enables whole-folder selection; also set via ref for older engines. */}
+          <input ref={folderRef} type="file" multiple hidden webkitdirectory="" directory="" mozdirectory=""
+            onChange={(e) => { addFiles(e.target.files); e.target.value = ''; }} />
 
           {files.length > 0 && (
             <div style={{ marginTop: 18 }}>

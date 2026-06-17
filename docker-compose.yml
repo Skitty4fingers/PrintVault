@@ -1,0 +1,33 @@
+# PrintVault — production Docker Compose.
+# Usage:
+#   cp .env.example .env   (then edit secrets)
+#   docker compose up -d --build
+# The app is then reachable on the host at http://<host-or-tailscale-ip>:<PORT>.
+services:
+  printvault:
+    build: .
+    container_name: printvault
+    restart: unless-stopped
+    # Map the host port (default 8080) to the container. Reachable via the
+    # machine's Tailscale IP since the app binds to 0.0.0.0 inside the container.
+    ports:
+      - "${PORT:-8080}:8080"
+    env_file:
+      - .env
+    environment:
+      # Storage path inside the container always points at the mounted volume.
+      STORAGE_PATH: /data
+      HOST: 0.0.0.0
+      PORT: 8080
+    volumes:
+      # Persistent storage: uploaded files, SQLite database and thumbnails.
+      - printvault-data:/data
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:8080/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+volumes:
+  printvault-data:

@@ -1,0 +1,27 @@
+# Dependencies (reinstalled inside the image)
+node_modules
+*/node_modules
+client/dist
+
+# Secrets & local runtime data
+.env
+.env.*
+data
+storage
+*.db
+*.db-shm
+*.db-wal
+thumbnails
+uploads
+
+# VCS / tooling / logs
+.git
+.gitignore
+logs
+*.log
+.vscode
+.idea
+.DS_Store
+
+# Docs not needed in the image
+docs

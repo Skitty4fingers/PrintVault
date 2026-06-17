@@ -82,11 +82,11 @@ npm run install:all
 # Create your env file
 cp .env.example .env
 
-# Run the API (:8080) and the Vite dev server (:5173) together
+# Run the API (:8080) and the Vite dev server (:42069) together
 npm run dev
 ```
 
-Open <http://localhost:5173>. The dev server proxies `/api` to the backend on `:8080`.
+Open <http://localhost:42069>. The dev server proxies `/api` to the backend on `:8080`.
 
 ## 🏭 Production without Docker
 

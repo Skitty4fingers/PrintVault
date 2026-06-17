@@ -6,8 +6,10 @@ import react from '@vitejs/plugin-react';
 export default defineConfig({
   plugins: [react()],
   server: {
-    port: 5173,
+    port: 42069,
+    host: true, // expose the dev server on the LAN / Tailscale interface too
     proxy: {
+      // Proxy API calls to the backend (PORT in .env, default 8080).
       '/api': { target: 'http://localhost:8080', changeOrigin: true },
     },
   },

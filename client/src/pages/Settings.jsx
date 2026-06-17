@@ -1,8 +1,9 @@
 import { useEffect, useState, useCallback } from 'react';
 import AppShell from '../components/AppShell.jsx';
 import { Icon, CenterSpinner, ConfirmDialog, useToast } from '../components/ui.jsx';
-import { api, downloadUrl } from '../lib/api.js';
-import { formatDate } from '../lib/format.js';
+import { api, downloadUrl, uploadThumbnail } from '../lib/api.js';
+import { renderModelThumbnail } from '../lib/thumbnailer.js';
+import { formatDate, is3D } from '../lib/format.js';
 
 export default function Settings() {
   const toast = useToast();
@@ -12,6 +13,7 @@ export default function Settings() {
   const [expiry, setExpiry] = useState(0);
   const [pw, setPw] = useState({ currentPassword: '', newPassword: '', confirm: '' });
   const [revoke, setRevoke] = useState(null);
+  const [thumbBusy, setThumbBusy] = useState(null);
 
   const loadShares = useCallback(() => { api.get('/api/shares').then(setShares).catch(() => {}); }, []);
   useEffect(() => {
@@ -35,6 +37,29 @@ export default function Settings() {
     catch (e) { toast(e.message, 'error'); }
   };
   const exportData = (format) => downloadUrl(`/api/export?format=${format}`).catch((e) => toast(e.message, 'error'));
+
+  const generateThumbnails = async () => {
+    try {
+      const d = await api.get('/api/files?pageSize=200');
+      const targets = d.items.filter((f) => is3D(f.ext) && !f.thumb);
+      if (!targets.length) { toast('All model thumbnails are up to date', 'info'); return; }
+      setThumbBusy({ done: 0, total: targets.length });
+      let okc = 0;
+      for (let i = 0; i < targets.length; i++) {
+        try {
+          const res = await fetch(`/api/files/${targets[i].id}/raw`, { credentials: 'include' });
+          const blob = await renderModelThumbnail(await res.arrayBuffer(), targets[i].ext);
+          if (blob) { await uploadThumbnail(targets[i].id, blob); okc++; }
+        } catch { /* skip */ }
+        setThumbBusy({ done: i + 1, total: targets.length });
+      }
+      toast(`Generated ${okc} thumbnail(s)`, 'success');
+    } catch (e) {
+      toast(e.message, 'error');
+    } finally {
+      setThumbBusy(null);
+    }
+  };
 
   if (!settings) return <AppShell title="Settings"><CenterSpinner /></AppShell>;
 
@@ -83,6 +108,12 @@ export default function Settings() {
               ))}
             </div>
           )}
+        </Section>
+
+        <Section title="Thumbnails" subtitle="Generate preview images for STL/OBJ models that don't have one yet (rendered in your browser).">
+          <button className="btn" onClick={generateThumbnails} disabled={!!thumbBusy}>
+            <Icon name="grid" size={16} /> {thumbBusy ? `Generating ${thumbBusy.done}/${thumbBusy.total}…` : 'Generate missing thumbnails'}
+          </button>
         </Section>
 
         <Section title="Export metadata" subtitle="Download metadata for all files.">

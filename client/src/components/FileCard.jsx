@@ -1,16 +1,28 @@
 // File card (grid) and row (list) used in the library, dashboard and collections.
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Icon } from './ui.jsx';
 import { formatBytes, formatDate, fileGlyph, isImage } from '../lib/format.js';
+
+// Renders the card thumbnail: the image itself for images, a rendered model
+// thumbnail when one exists, or a file-type glyph as a fallback.
+function Thumb({ file }) {
+  const [failed, setFailed] = useState(false);
+  let src = null;
+  if (isImage(file.ext)) src = `/api/files/${file.id}/raw`;
+  else if (file.thumb) src = `/api/files/${file.id}/thumbnail`;
+  if (src && !failed) {
+    return <img src={src} alt={file.name} loading="lazy" onError={() => setFailed(true)} />;
+  }
+  return <span className="file-glyph">{fileGlyph(file.ext)}</span>;
+}
 
 export function FileCard({ file, selectable, selected, onToggleSelect, onFavorite }) {
   const navigate = useNavigate();
   return (
     <div className={`card ${selected ? 'selected' : ''}`} onClick={() => navigate(`/files/${file.id}`)}>
       <div className="card-thumb">
-        {isImage(file.ext)
-          ? <img src={`/api/files/${file.id}/raw`} alt={file.name} loading="lazy" />
-          : <span className="file-glyph">{fileGlyph(file.ext)}</span>}
+        <Thumb file={file} />
         {selectable && (
           <div className={`card-select ${selected ? 'on' : ''}`}
             onClick={(e) => { e.stopPropagation(); onToggleSelect(file.id); }}>

@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useParams } from 'react-router-dom';
+import { isImage } from '../lib/format.js';
 import FilePreview from '../components/FilePreview.jsx';
 import { Icon, CenterSpinner, EmptyState, Modal, useToast, ToastProvider } from '../components/ui.jsx';
 import { api, downloadUrl } from '../lib/api.js';
@@ -84,9 +85,7 @@ function ShareInner() {
           {files.map((f) => (
             <div key={f.id} className="card" onClick={() => setPreview(f)}>
               <div className="card-thumb">
-                {['png', 'jpg', 'jpeg', 'webp'].includes(f.ext)
-                  ? <img src={`${base}/file/${f.id}/raw`} alt={f.name} loading="lazy" />
-                  : <span className="file-glyph">{fileGlyph(f.ext)}</span>}
+                <ShareThumb f={f} base={base} />
               </div>
               <div className="card-body">
                 <div className="card-title" title={f.name}>{f.name}</div>
@@ -110,6 +109,15 @@ function ShareInner() {
       <p className="muted" style={{ textAlign: 'center', marginTop: 40, fontSize: 13 }}>Powered by PrintVault</p>
     </div>
   );
+}
+
+function ShareThumb({ f, base }) {
+  const [failed, setFailed] = useState(false);
+  let src = null;
+  if (isImage(f.ext)) src = `${base}/file/${f.id}/raw`;
+  else if (f.thumb) src = `${base}/file/${f.id}/thumbnail`;
+  if (src && !failed) return <img src={src} alt={f.name} loading="lazy" onError={() => setFailed(true)} />;
+  return <span className="file-glyph">{fileGlyph(f.ext)}</span>;
 }
 
 function Centered({ icon, title, message }) {

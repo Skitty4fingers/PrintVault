@@ -53,6 +53,17 @@ export function uploadFiles(files, fields, onProgress) {
   });
 }
 
+// Upload a generated PNG thumbnail for a file.
+export async function uploadThumbnail(fileId, blob) {
+  const form = new FormData();
+  form.append('thumb', blob, 'thumb.png');
+  const res = await fetch(`/api/files/${fileId}/thumbnail`, {
+    method: 'POST', credentials: 'include', body: form,
+  });
+  if (!res.ok) throw new Error('Thumbnail upload failed');
+  return res.json();
+}
+
 // Trigger a browser download for a streaming/binary endpoint (optionally POST).
 export async function downloadUrl(url, { method = 'GET', body, filename } = {}) {
   const opts = { method, credentials: 'include', headers: {} };
